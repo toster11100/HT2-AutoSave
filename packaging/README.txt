@@ -11,7 +11,10 @@ autosave_3 — самое старое. Порядок сохраняется п
 в интервал. Несколько событий могут объединяться в одно сохранение.
 
 Установка
-1. Требуется рабочий ASI Loader и оригинальный поддерживаемый Steam EXE.
+1. Требуется рабочий ASI Loader и EXE, соответствующий одному из проверяемых профилей:
+   KOTR81 (русская версия 8.1), KOTR13 (международная версия 1.3) или ModifiedCore82.
+   Совпадение номера версии само по себе не подтверждает совместимость.
+   Версия GOG отдельно не проверялась.
 2. Полностью закройте игру. Перед первым использованием сохраните резервную
    копию профиля .pl1. Мод собственных резервных копий не создаёт.
 3. При переходе с тестовой версии уберите только HT2_AutoSave_Experimental.asi
@@ -72,9 +75,9 @@ wait for active gameplay; several events may produce one save.
 
 Requires a working ASI Loader. Supports KOTR81 (Russian version 8.1), KOTR13
 (international King of the Road 1.3) and ModifiedCore82 (Game Core 8.2).
-The known KOTR13 EN/FR/DE/ES executables were checked against one reference;
-local EN/DE/ES executables after successive Steam language switches match
-GOG executables were not individually verified; version numbers alone do not establish compatibility.
+Known localized KOTR13 executables are supported only when their SHA-256
+matches the validated reference. GOG has not been individually verified;
+version numbers alone do not establish compatibility.
 Close the game before installation. Back up your .pl1 profile before first use.
 Remove HT2_AutoSave_Experimental.asi when upgrading from the experimental build;
 use only one AutoSave ASI. Copy the plugins folder into the game directory for

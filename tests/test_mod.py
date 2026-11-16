@@ -5,12 +5,11 @@ import struct
 import sys
 import unittest
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE
+ROOT = Path(__file__).resolve().parents[1]
 import pefile
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE
 from unicorn.x86_const import *
-spec = importlib.util.spec_from_file_location('autosave_build', HERE/'build.py')
+spec = importlib.util.spec_from_file_location('autosave_build', ROOT/'build.py')
 b = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(b)
 RELEASE = '--release' in sys.argv

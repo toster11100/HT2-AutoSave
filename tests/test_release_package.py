@@ -5,9 +5,9 @@ import unittest
 import zipfile
 
 import package_release
-from test_ini_win32 import WindowsIniMachine
+from tests.test_ini_win32 import WindowsIniMachine
 
-HERE=Path(__file__).resolve().parent
+HERE=Path(__file__).resolve().parents[1]
 
 
 class PackageTests(unittest.TestCase):

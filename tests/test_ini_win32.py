@@ -8,7 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from test_mod import Machine
+from tests.test_mod import Machine
 
 
 class WindowsIniMachine(Machine):

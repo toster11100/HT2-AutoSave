@@ -16,7 +16,7 @@ def package():
     package_dir=release/'package'
     files={
         'plugins/HT2_AutoSave.asi':image,
-        'README.txt':(here/'README.txt').read_bytes(),
+        'README.txt':(here/'packaging'/'README.txt').read_bytes(),
     }
     for name,payload in files.items():
         target=package_dir/name

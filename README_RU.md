@@ -1,3 +1,5 @@
+[English](README.md) | **Русский**
+
 # HT2 AutoSave 1.1.0
 
 AutoSave использует штатное сохранение игры после выбранных событий и во время активной игры. Это ASI-плагин для *Hard Truck 2: King of the Road* («Дальнобойщики 2»).
@@ -64,7 +66,7 @@ INI использует секцию `[AutoSave]` и создаётся при 
 python -m pip install -r requirements-test.txt
 $env:HT2_BUILD_INPUTS = 'C:\путь\вне\репозитория\к\локальным\файлам\игры'
 python build.py --release
-python -m unittest discover -s . -p 'test_*.py' -v
+python -m unittest discover -s tests -t . -p 'test_*.py' -v
 python package_release.py
 ```
 
@@ -77,7 +79,7 @@ python package_release.py
 | `KOTR13.exe` | `0df6861c9e67c2a2ae373cff8d765ae41cc76079d8f84b9340e609263edd983f` | Эталон KOTR13 / 1.3 |
 | `ht2ach.dll` | Из локальной установки игры | Только один регрессионный тест Steam-достижений |
 
-Игровые файлы в проект не включены. Сборка AutoSave самостоятельна и не требует исходников Tractor Swap. Результаты сборки находятся только в игнорируемом каталоге `build-output/`. Исходный `README.txt` сохранён и включается в установочный ZIP.
+Игровые файлы в проект не включены. Сборка AutoSave самостоятельна и не требует исходников Tractor Swap. Результаты сборки находятся только в игнорируемом каталоге `build-output/`. Инструкция для ZIP находится в [`packaging/README.txt`](packaging/README.txt) и включается в установочный архив.
 
 ## Лицензия и сторонние материалы
 

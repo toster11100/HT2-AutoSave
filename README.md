@@ -1,3 +1,5 @@
+[English](README.md) | [Русский](README_RU.md)
+
 # HT2 AutoSave 1.1.0
 
 AutoSave uses the game's native save routine after selected game events and during active play. It is an ASI plugin for *Hard Truck 2: King of the Road*.
@@ -64,7 +66,7 @@ Use Python 3.10+ on Windows. The toolchain and tests are pinned in `requirements
 python -m pip install -r requirements-test.txt
 $env:HT2_BUILD_INPUTS = 'C:\path\outside\the\repository\to\private-game-files'
 python build.py --release
-python -m unittest discover -s . -p 'test_*.py' -v
+python -m unittest discover -s tests -t . -p 'test_*.py' -v
 python package_release.py
 ```
 
@@ -77,7 +79,7 @@ python package_release.py
 | `KOTR13.exe` | `0df6861c9e67c2a2ae373cff8d765ae41cc76079d8f84b9340e609263edd983f` | KOTR13 / 1.3 reference |
 | `ht2ach.dll` | From the local game installation | One Steam-achievement regression test only |
 
-Game files are not included. The AutoSave build is independent of Tractor Swap source code. Generated files stay in the ignored `build-output/` directory. The existing player `README.txt` is retained in the repository and included in the installation ZIP.
+Game files are not included. The AutoSave build is independent of Tractor Swap source code. Generated files stay in the ignored `build-output/` directory. The player installation guide is [`packaging/README.txt`](packaging/README.txt), which is included in the ZIP.
 
 ## License and third-party material
 
