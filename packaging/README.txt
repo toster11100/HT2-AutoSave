@@ -1,4 +1,4 @@
-AutoSave 1.1.0 — Hard Truck 2: King of the Road
+AutoSave 1.1.1 — Hard Truck 2: King of the Road
 
 Автосохранение после получения и сдачи груза, победы в кольцевой гонке,
 покупки автомобиля, найма водителя и через заданный интервал активной игры.
@@ -40,6 +40,7 @@ OnDriverHire — независимые переключатели событи�
 не заменяйте существующий INI образцом при ручном обновлении.
 
 Совместимость и ограничения
+Исправлен конфликт с HT2 AI Trailers 1.3.6.
 Поддерживаются KOTR81 (русская версия 8.1), KOTR13 (международная версия 1.3) и ModifiedCore82 (Game Core 8.2).
 Сообщения доступны на RU/EN/FR/DE/ES. Известные KOTR13 EXE для EN/FR/DE/ES;
 Локальные EN/DE/ES EXE после последовательных переключений Steam побайтно
@@ -54,7 +55,7 @@ OnDriverHire — независимые переключатели событи�
 N новых автосохранений. Вручную перезаписанные autosave_N не защищены от ротации.
 
 Диагностика: plugins/HT2_AutoSave_Status.ini после входа в мир.
-Обычный результат: Result=Ready, Version=1.1.0, ConflictAddress=00000000,
+Обычный результат: Result=Ready, Version=1.1.1, ConflictAddress=00000000,
 RotationError=00000000. Profile указывает обнаруженный профиль EXE.
 IniStatus=Created/Existing и IniError=00000000 — настройки доступны.
 ReadFailed/CreateFailed/WriteFailed — использованы встроенные значения.
@@ -73,6 +74,7 @@ autosave_1 is newest, autosave_2 previous, autosave_3 oldest, across restarts.
 Menus, pause and lost focus do not count toward the interval. Pending requests
 wait for active gameplay; several events may produce one save.
 
+Fixes the save signature conflict with HT2 AI Trailers 1.3.6.
 Requires a working ASI Loader. Supports KOTR81 (Russian version 8.1), KOTR13
 (international King of the Road 1.3) and ModifiedCore82 (Game Core 8.2).
 Known localized KOTR13 executables are supported only when their SHA-256
@@ -92,6 +94,10 @@ Restart the game after changing the settings above.
 Manual slots with other names are not rotated. The native save format and disk
 failure risks remain: all profile slots share one .pl1 file. Slot shifting is
 not atomic either. Pager messages do not verify successful disk writes.
-Ready / Version=1.1.0 in HT2_AutoSave_Status.ini indicates initialized hooks.
+Ready / Version=1.1.1 in HT2_AutoSave_Status.ini indicates initialized hooks.
 RotationFailed disables further automatic attempts until restart.
 Disable with Enabled=false or remove HT2_AutoSave.asi while the game is closed.
+
+License / Лицензия: GPL-3.0-only. See LICENSE.txt.
+Corresponding source / Исходный код версии 1.1.1:
+https://github.com/toster11100/HT2-AutoSave/tree/v1.1.1

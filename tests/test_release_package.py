@@ -13,10 +13,12 @@ HERE=Path(__file__).resolve().parents[1]
 class PackageTests(unittest.TestCase):
     def test_release_archive_has_an_explicit_safe_file_list(self):
         result=package_release.package()
-        self.assertEqual(result['version'],'1.1.0')
+        self.assertEqual(result['version'],package_release.build.RELEASE_VERSION)
         self.assertEqual(set(result['files']),{
-            'plugins/HT2_AutoSave.asi','README.txt'})
-        archive=HERE/'build-output/1.1.0'/result['archive']
+            'plugins/HT2_AutoSave.asi','README.txt','LICENSE.txt'})
+        archive=HERE/'build-output'/result['version']/result['archive']
+        self.assertEqual(archive.with_suffix('.zip.sha256').read_text().split()[0],
+                         result['archive_sha256'])
         with zipfile.ZipFile(archive) as bundle:
             self.assertEqual(bundle.testzip(),None)
             self.assertEqual(set(bundle.namelist()),set(result['files']))
@@ -24,8 +26,8 @@ class PackageTests(unittest.TestCase):
                 self.assertFalse(name.lower().endswith(('.exe','.dll','.ini','.pl1')))
 
     def test_package_file_list_preserves_runtime_generated_ini(self):
-        package_release.package()
-        staged=HERE/'build-output/1.1.0/package'
+        result=package_release.package()
+        staged=HERE/'build-output'/result['version']/'package'
         with tempfile.TemporaryDirectory(prefix='HT2_AutoSave_Update_') as directory:
             target=Path(directory);(target/'plugins').mkdir()
             ini=target/'plugins/HT2_AutoSave.ini'

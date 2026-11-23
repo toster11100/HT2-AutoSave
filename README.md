@@ -1,6 +1,6 @@
 [English](README.md) | [Русский](README_RU.md)
 
-# HT2 AutoSave 1.1.0
+# HT2 AutoSave 1.1.1
 
 AutoSave uses the game's native save routine after selected game events and during active play. It is an ASI plugin for *Hard Truck 2: King of the Road*.
 
@@ -40,6 +40,8 @@ Boolean values accept `true`/`false`, `yes`/`no`, `on`/`off`, and `1`/`0`. Missi
 
 An identical version number alone does not establish compatibility. The GOG build has not been individually verified; no GOG compatibility is claimed unless its executable passes the mod's checks and is tested.
 
+Version 1.1.1 fixes a signature conflict with **HT2 AI Trailers 1.3.6**. Cargo-pickup autosave and reload were verified in game on KOTR81, KOTR13, and ModifiedCore82 with the release candidate. Other changes to the guarded save routine still produce SignatureConflict.
+
 ## Installation and removal
 
 Requires Windows, a supported 32-bit game executable, and a compatible ASI Loader. Close the game and back up the `.pl1` profile before first use. Copy `plugins/HT2_AutoSave.asi` from the ZIP into the game's `plugins` directory. When upgrading from an experimental build, remove `HT2_AutoSave_Experimental.asi`; install only one AutoSave ASI.
@@ -52,7 +54,7 @@ To uninstall, close the game and remove `plugins/HT2_AutoSave.asi`. The mod does
 
 Slot rotation is not atomic. An error can leave an incomplete sequence and disables further automatic attempts until the next game restart. The native save return value and pager notification do not prove that data reached disk. Back up saves before first use. A transition from the old circular 0.1.2 ordering completes after enough new autosaves have been made.
 
-After entering the game world, check `HT2_AutoSave_Status.ini`. `Result=Ready` and `Version=1.1.0` indicate initialization. `IniStatus=Created` or `Existing` with `IniError=00000000` indicates normal configuration access. `ReadFailed`, `CreateFailed`, or `WriteFailed` means defaults are used. `SignatureConflict` or `PatchFailed` disables the mod. `RotationFailed` stops later attempts until restart. A status file may not be created for an unsupported executable.
+After entering the game world, check `HT2_AutoSave_Status.ini`. `Result=Ready` and `Version=1.1.1` indicate initialization. `IniStatus=Created` or `Existing` with `IniError=00000000` indicates normal configuration access. `ReadFailed`, `CreateFailed`, or `WriteFailed` means defaults are used. `SignatureConflict` or `PatchFailed` disables the mod. `RotationFailed` stops later attempts until restart. A status file may not be created for an unsupported executable.
 
 ## Runtime dependencies and compatibility
 
@@ -66,6 +68,7 @@ Use Python 3.10+ on Windows. The toolchain and tests are pinned in `requirements
 python -m pip install -r requirements-test.txt
 $env:HT2_BUILD_INPUTS = 'C:\path\outside\the\repository\to\private-game-files'
 python build.py --release
+$env:HT2_TEST_RELEASE = '1'
 python -m unittest discover -s tests -t . -p 'test_*.py' -v
 python package_release.py
 ```
@@ -85,4 +88,4 @@ Game files are not included. The AutoSave build is independent of Tractor Swap s
 
 Original mod source is licensed under **GPL-3.0-only**; see [`LICENSE`](LICENSE). The license does not apply to the game, Steam, ASI Loader, or third-party tools. Game executables, DLLs, saves, and cover art are not included. The builder reads reference executables locally to generate compatibility signatures; it does not copy them into the repository.
 
-Steam Workshop: [AutoSave 1.1.0](https://steamcommunity.com/sharedfiles/filedetails/?id=3840508411).
+Steam Workshop: [AutoSave](https://steamcommunity.com/sharedfiles/filedetails/?id=3840508411).

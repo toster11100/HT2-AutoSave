@@ -1,6 +1,7 @@
 """Run the emitted ASI machine code and hook continuations, not a Python model."""
 from pathlib import Path
 import importlib.util
+import os
 import struct
 import sys
 import unittest
@@ -12,9 +13,10 @@ from unicorn.x86_const import *
 spec = importlib.util.spec_from_file_location('autosave_build', ROOT/'build.py')
 b = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(b)
-RELEASE = '--release' in sys.argv
-if RELEASE: sys.argv.remove('--release')
-IMAGE, MANIFEST = b.build(release=RELEASE)
+RELEASE = '--release' in sys.argv or os.environ.get('HT2_TEST_RELEASE') == '1'
+if '--release' in sys.argv: sys.argv.remove('--release')
+COMPAT_RC = os.environ.get('HT2_TEST_COMPAT_RC') == '1' and not RELEASE
+IMAGE, MANIFEST = b.build(release=RELEASE, compat_rc=COMPAT_RC)
 READY_STATUS, MODULE_NAME = MANIFEST['ready_status'], MANIFEST['module_name']
 PROFILE_NAME=MANIFEST['name']
 BASE, STOP, SP, HEAP, API = 0x14000000, 0x1000800, 0x20ff000, 0x2010000, 0x1000000
@@ -247,6 +249,22 @@ class Machine:
 
 
 class AutoSaveTests(unittest.TestCase):
+    def test_pe_imports_are_disjoint_and_match_runtime_calls(self):
+        pe = pefile.PE(data=IMAGE)
+        expected = {
+            b'KERNEL32.dll': b.APIS[:b.KERNEL_COUNT],
+            b'USER32.dll': b.APIS[b.KERNEL_COUNT:],
+        }
+        if RELEASE or COMPAT_RC:
+            expected[b'CRYPT32.dll'] = ['CryptHashCertificate2']
+        self.assertEqual(
+            {library.dll: [entry.name.decode('ascii') for entry in library.imports]
+             for library in pe.DIRECTORY_ENTRY_IMPORT},
+            expected,
+        )
+        addresses = [entry.address for library in pe.DIRECTORY_ENTRY_IMPORT for entry in library.imports]
+        self.assertEqual(len(addresses), len(set(addresses)))
+
     def machine(self,**kwargs):
         m = Machine(**kwargs); m.install()
         self.assertEqual(m.status.get('Result'),READY_STATUS)
@@ -254,7 +272,7 @@ class AutoSaveTests(unittest.TestCase):
 
     def test_defaults_actual_config_parser_and_disabled(self):
         m = self.machine()
-        expected_version='1.1.0' if RELEASE else '1.1.0-experimental'
+        expected_version=b.RELEASE_VERSION if RELEASE else (b.COMPAT_VERSION if COMPAT_RC else b.VERSION)
         self.assertEqual(m.status['Version'],expected_version)
         self.assertEqual(MANIFEST['version'],expected_version)
         self.assertEqual(m.status['RotationError'],'00000000')

@@ -16,6 +16,8 @@ from capstone import Cs, CS_ARCH_X86, CS_MODE_32
 import pefile
 from pe_builder import make_pe
 VERSION = '1.1.0-experimental'
+COMPAT_VERSION = '1.1.1-rc.2'
+RELEASE_VERSION = '1.1.1'
 EXE = exe_profiles.reference('SO')
 SHA = '31fbd1dbbe7706183f09a3688482791255db2bfb557c02675374b96796ce2ebd'
 RDATA, IDATA, DATA, RELOC = 0x30000, 0x38000, 0x39000, 0x3c000
@@ -68,13 +70,16 @@ def mem(name): return f'dword ptr [ebx+{F[name]}]'
 BASE = 'call base_here; base_here: pop ebx; sub ebx,base_here; cld;'
 
 
-def _profile_blob(release=False, profile='SO', bank=0, data_offset=0):
+def _profile_blob(release=False, profile='SO', bank=0, data_offset=0, compat_version=None):
     R={key:value+bank for key,value in globals()['R'].items()}
     R['entry']+=0x100
+    compat_rc = compat_version is not None
+    if compat_rc:
+        R['trailers_guard'] = bank+0x7800
     ga=lambda va:exe_profiles.address(profile,va)
-    version = '1.1.0' if release else VERSION
-    ready_status = 'Ready' if release else 'ExperimentalReady'
-    module_name = 'HT2_AutoSave.asi' if release else 'HT2_AutoSave_Experimental.asi'
+    version = compat_version if compat_rc else ('1.1.0' if release else VERSION)
+    ready_status = 'Ready' if release or compat_rc else 'ExperimentalReady'
+    module_name = 'HT2_AutoSave.asi' if release or compat_rc else 'HT2_AutoSave_Experimental.asi'
     raw = exe_profiles.reference(profile).read_bytes()
     pe = pefile.PE(data=raw)
     ks = Ks(KS_ARCH_X86, KS_MODE_32)
@@ -99,7 +104,8 @@ def _profile_blob(release=False, profile='SO', bank=0, data_offset=0):
     message_table = blob(b''.join(u32(s) for s in messages))
     hex_digits = string('0123456789ABCDEF')
     wide_prefix = blob('autosave_'.encode('utf-16le'))
-    profile_name=string(exe_profiles.PROFILES[profile]['name'])
+    profile_label = exe_profiles.canonical_profile(profile) if compat_rc else exe_profiles.PROFILES[profile]['name']
+    profile_name=string(profile_label)
     ini_states=[string(s) for s in ['Existing','Created','ReadFailed','CreateFailed','WriteFailed']]
     ini_state_table=blob(b''.join(u32(v) for v in ini_states))
     default_ini=('[AutoSave]\r\n'+''.join(f'{name} = {"true" if maximum==1 and default else "false" if maximum==1 else default}\r\n'
@@ -136,8 +142,87 @@ def _profile_blob(release=False, profile='SO', bank=0, data_offset=0):
         struct.pack_into('<I', imports, 0x2c0+i*4, value)
         struct.pack_into('<I', imports, 0x200+(KERNEL_COUNT+i)*4, 0)
     struct.pack_into('<I', imports, 20+16, IAT[APIS[KERNEL_COUNT]])
+    if compat_rc:
+        # Keep the extra descriptor's name and lookup table outside the
+        # KERNEL32/USER32 entries used by the published build.
+        crypto_name = 0x110
+        crypto_ilt = 0x1e0
+        crypto_iat = IDATA+0x2e0
+        struct.pack_into('<IIIII', imports, 40, IDATA+crypto_ilt, 0, 0, IDATA+crypto_name, crypto_iat)
+        dll_name = b'CRYPT32.dll\0'
+        crypto_import = b'\0\0CryptHashCertificate2\0'
+        imports[crypto_name:crypto_name+len(dll_name)] = dll_name
+        imports[0x700:0x700+len(crypto_import)] = crypto_import
+        struct.pack_into('<I', imports, crypto_ilt, IDATA+0x700)
+        struct.pack_into('<I', imports, 0x2e0, IDATA+0x700)
 
     chunks = {}
+    if compat_rc:
+        # HT2 AI Trailers 1.3.6 replaces just the displacement of a CALL in
+        # the guarded save preparation routine. Validate the relocated wrapper
+        # in memory and its selected native callee before accepting that CALL.
+        call_site = 0x51d879
+        call_va = ga(0x51d6d0) + (call_site-0x51d6d0)
+        native = call_va + 5 + struct.unpack('<i', pe.get_data(call_va-0x400000+1,4))[0]
+        table_rva = {'SO':0x10240, 'FR':0x100e4, 'MC':0x1039c}[profile]
+        native_addr = blob(u32(native))
+        kernel_name = string('kernel32.dll')
+        module_query = string('VirtualQuery')
+        sha256_name = blob('SHA256\0'.encode('utf-16le'))
+        wrapper_hash = blob(bytes.fromhex('82b2a55ee4bbb08faafc6c681e33f70ca335eba22d51802d7b85598ca69be168'))
+        wrapper_relocs = (0xc,0x32,0x64,0xe0,0x10e,0x16b,0x1a2,0x1a9,0x1b4,
+                          0x1c7,0x1dd,0x1fa,0x212,0x244,0x2c0,0x2cc,0x2d6,
+                          0x303,0x318,0x328,0x331,0x347,0x378,0x3de,0x3e7,0x3f2,0x3f8)
+        normalize = ''.join(f'sub dword ptr [edi+{offset}],eax;' for offset in wrapper_relocs)
+        chunks['trailers_guard'] = f'''
+            push ebp; mov ebp,esp; sub esp,0x440; push esi; push edi;
+            lea eax,[ebp-4]; push eax; push edx; push 6;
+            mov [ebp-8],edx; call dword ptr [ebx+{IAT['GetModuleHandleExA']}];
+            test eax,eax; jz trailers_bad;
+            mov edi,[ebp-4]; lea ecx,[edi+0x8f90]; cmp ecx,[ebp-8]; jne trailers_bad;
+            lea eax,[ebx+{kernel_name}]; push eax; call dword ptr [ebx+{IAT['GetModuleHandleA']}];
+            test eax,eax; jz trailers_bad;
+            lea ecx,[ebx+{module_query}]; push ecx; push eax;
+            call dword ptr [ebx+{IAT['GetProcAddress']}]; test eax,eax; jz trailers_bad;
+            mov esi,eax;
+            mov ecx,edi; mov edx,0x1000; call trailers_readable; test eax,eax; jz trailers_bad;
+            cmp word ptr [edi],0x5a4d; jne trailers_bad;
+            mov edx,[edi+0x3c]; cmp edx,0xfac; ja trailers_bad;
+            cmp dword ptr [edi+edx],0x4550; jne trailers_bad;
+            cmp dword ptr [edi+edx+0x50],0x46000; jne trailers_bad;
+            lea ecx,[edi+{table_rva}+0x100]; mov edx,0x38; call trailers_readable; test eax,eax; jz trailers_bad;
+            lea ecx,[edi+0x12010]; mov edx,4; call trailers_readable; test eax,eax; jz trailers_bad;
+            lea ecx,[edi+{table_rva}]; cmp [edi+0x12010],ecx; jne trailers_bad;
+            mov edx,[ebx+{native_addr}]; cmp [ecx+0x100],edx; jne trailers_bad;
+            cmp dword ptr [ecx+0x134],0x696ca0; jne trailers_bad;
+            lea ecx,[edi+0x398c0]; mov edx,4; call trailers_readable; test eax,eax; jz trailers_bad;
+            cmp [edi+0x398c0],esi; jne trailers_bad;
+            lea ecx,[edi+0x8f90]; mov edx,0x410; call trailers_readable; test eax,eax; jz trailers_bad;
+            lea esi,[edi+0x8f90]; lea edi,[ebp-0x440]; mov ecx,0x410; rep movsb;
+            lea edi,[ebp-0x440]; mov eax,[ebp-4]; sub eax,0x10000000;
+            {normalize}
+            mov dword ptr [ebp-0xc],32;
+            lea eax,[ebp-0xc]; push eax; lea eax,[ebp-0x2c]; push eax;
+            push 0x410; push edi; push 0; push 0; lea eax,[ebx+{sha256_name}]; push eax;
+            call dword ptr [ebx+{crypto_iat}]; test eax,eax; jz trailers_bad;
+            cmp dword ptr [ebp-0xc],32; jne trailers_bad;
+            lea esi,[ebp-0x2c]; lea edi,[ebx+{wrapper_hash}]; mov ecx,32;
+            repe cmpsb; sete al; movzx eax,al; jmp trailers_done;
+            trailers_bad: xor eax,eax;
+            trailers_done: pop edi; pop esi; mov esp,ebp; pop ebp; ret;
+            trailers_readable:
+            sub esp,28; lea eax,[ecx+edx]; push eax; lea eax,[esp+4];
+            push 28; push eax; push ecx; call esi;
+            cmp eax,28; jne trailers_unreadable;
+            cmp [esp+8],edi; jne trailers_unreadable;
+            cmp dword ptr [esp+20],0x1000; jne trailers_unreadable;
+            cmp dword ptr [esp+28],0x1000000; jne trailers_unreadable;
+            test dword ptr [esp+24],0x100; jnz trailers_unreadable;
+            test dword ptr [esp+24],0xee; jz trailers_unreadable;
+            mov eax,[esp+4]; add eax,[esp+16]; jc trailers_unreadable;
+            cmp eax,[esp]; setae al; movzx eax,al; add esp,32; ret;
+            trailers_unreadable: xor eax,eax; add esp,32; ret;
+        '''
     # DllMain: minimal bootstrap only; config and remaining hooks run on game thread.
     s = f'''cmp dword ptr [esp+8],1; jne entry_ok;
         pushfd; pushad; mov ebx,[esp+40]; mov {mem('module')},ebx;
@@ -552,7 +637,26 @@ def _profile_blob(release=False, profile='SO', bank=0, data_offset=0):
     init += f'cmp {mem("Enabled")},0; je init_disabled;'
     # Bootstrap is already ours; every other original range must match before mutations.
     for va, signature, n in signatures[1:]:
-        init += f'mov esi,{va}; lea edi,[ebx+{signature}]; mov ecx,{n}; repe cmpsb; jne init_conflict;'
+        if compat_rc and va==0x51d6d0:
+            # The original prefix comparison includes the E8 opcode.
+            # The suffix and known destination together validate the full range.
+            displacement_offset = call_site-va+1
+            init += f'''
+                mov esi,{va}; lea edi,[ebx+{signature}]; mov ecx,{n};
+                repe cmpsb; je trailers_guard_done;
+                cmp ecx,{n-displacement_offset-1}; ja init_conflict;
+                cmp ecx,{n-displacement_offset-4}; jb init_conflict;
+                push esi;
+                mov esi,{va}; add esi,{displacement_offset}; mov edx,[esi]; lea edx,[edx+esi+4];
+                call {R['trailers_guard']};
+                pop esi; test eax,eax; jz init_conflict;
+                mov esi,{va}; add esi,{displacement_offset+4};
+                lea edi,[ebx+{signature+displacement_offset+4}]; mov ecx,{n-displacement_offset-4};
+                repe cmpsb; jne init_conflict;
+                trailers_guard_done:;
+            '''
+        else:
+            init += f'mov esi,{va}; lea edi,[ebx+{signature}]; mov ecx,{n}; repe cmpsb; jne init_conflict;'
     init += f'call {R["language"]}; mov {mem("slot")},1;'
     for name, va, n in HOOKS[1:]:
         init += f'mov ecx,{va}; mov edx,{R[name]}; mov esi,{n}; call {R["patch"]}; test eax,eax; jz init_patch_failed;'
@@ -605,7 +709,7 @@ def _profile_blob(release=False, profile='SO', bank=0, data_offset=0):
         listing.append(f'; {name} RVA {R[name]:08X}\n'+source.replace(';','\n'))
         sizes[name] = len(binary)
     assert len(data)<0x2800
-    meta=dict(name=exe_profiles.PROFILES[profile]['name'],key=profile,
+    meta=dict(name=profile_label,key=profile,
               exe_sha256=hashlib.sha256(raw).hexdigest(),routines=R,sizes=sizes,
               hooks=[dict(routine=k,va=ga(va),length=n,opcode='jmp',expected=pe.get_data(ga(va)-0x400000,n).hex()) for k,va,n in HOOKS],
               guards=[dict(va=ga(va),length=n) for va,n in GUARDS],
@@ -613,14 +717,19 @@ def _profile_blob(release=False, profile='SO', bank=0, data_offset=0):
     return bytes(code),bytes(data),bytes(imports),listing,meta
 
 
-def build(release=False):
-    version='1.1.0' if release else VERSION
-    module_name='HT2_AutoSave.asi' if release else 'HT2_AutoSave_Experimental.asi'
+def build(release=False, compat_rc=False, legacy_release=False):
+    if sum((release, compat_rc, legacy_release)) > 1:
+        raise ValueError('Choose one build variant.')
+    compat_version = RELEASE_VERSION if release else (COMPAT_VERSION if compat_rc else None)
+    compat_rc = compat_version is not None
+    release = release or legacy_release
+    version=compat_version if compat_rc else ('1.1.0' if release else VERSION)
+    module_name='HT2_AutoSave.asi' if release or compat_rc else 'HT2_AutoSave_Experimental.asi'
     code=bytearray(RDATA-0x1000);data=bytearray(IDATA-RDATA)
     metadata=[];listing=[]
     for index,key in enumerate(['SO','FR','MC']):
         bank=index*0x10000;offset=index*0x2800
-        native,constants,imports,asm,meta=_profile_blob(release,key,bank,offset)
+        native,constants,imports,asm,meta=_profile_blob(release,key,bank,offset,compat_version)
         code[bank:bank+len(native)]=native
         data[offset:offset+len(constants)]=constants
         metadata.append(meta);listing.extend(asm)
@@ -638,11 +747,11 @@ def build(release=False):
         ('.idata',IDATA,imports,0xc0000040),
         ('.data',DATA,bytes(0x3000),0xc0000040),
         ('.reloc',RELOC,struct.pack('<IIHH',0x1000,12,0,0),0x42000040)],
-        base=0x14000000,imports=(IDATA,60),reloc=(RELOC,12))
+        base=0x14000000,imports=(IDATA,80 if compat_rc else 60),reloc=(RELOC,12))
     # Rebuilds never overwrite a published release or Workshop upload folder.
-    output=HERE/'build-output'/('1.1.0' if release else 'experimental')
+    output=HERE/'build-output'/(version if release or compat_rc else 'experimental')
     output.mkdir(parents=True,exist_ok=True)
-    manifest=dict(metadata[0],version=version,ready_status='Ready' if release else 'ExperimentalReady',
+    manifest=dict(metadata[0],version=version,ready_status='Ready' if release or compat_rc else 'ExperimentalReady',
                   module_name=module_name,asi_sha256=hashlib.sha256(image).hexdigest(),profiles=metadata)
     manifest['routines']=dict(manifest['routines'],entry=0x1000)
     (output/module_name).write_bytes(image)
@@ -656,5 +765,9 @@ def build(release=False):
 if __name__ == '__main__':
     import argparse
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--release',action='store_true')
-    build(release=parser.parse_args().release)
+    variant=parser.add_mutually_exclusive_group()
+    variant.add_argument('--release',action='store_true')
+    variant.add_argument('--compat-rc',action='store_true')
+    variant.add_argument('--legacy-release',action='store_true',help='Reproduce 1.1.0.')
+    args=parser.parse_args()
+    build(release=args.release,compat_rc=args.compat_rc,legacy_release=args.legacy_release)

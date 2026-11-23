@@ -11,12 +11,13 @@ def package():
     here=Path(__file__).resolve().parent
     image,manifest=build.build(release=True)
     version=manifest['version']
-    assert version=='1.1.0' and manifest['ready_status']=='Ready'
+    assert version==build.RELEASE_VERSION and manifest['ready_status']=='Ready'
     release=here/'build-output'/version
     package_dir=release/'package'
     files={
         'plugins/HT2_AutoSave.asi':image,
         'README.txt':(here/'packaging'/'README.txt').read_bytes(),
+        'LICENSE.txt':(here/'LICENSE').read_bytes(),
     }
     for name,payload in files.items():
         target=package_dir/name
@@ -44,6 +45,8 @@ def package():
     result=dict(version=version,archive=archive.name,
                 archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),files=hashes,
                 published=False)
+    (release/f'{archive.name}.sha256').write_text(
+        f"{result['archive_sha256']}  {archive.name}\n",encoding='ascii')
     (release/'package_manifest.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(result,indent=2))
     return result
